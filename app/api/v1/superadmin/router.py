@@ -1,0 +1,26 @@
+from fastapi import APIRouter
+
+from app.api.v1.superadmin.endpoints import (
+    analytics,
+    audit,
+    auth,
+    billing,
+    config,
+    dids,
+    sip_trunks,
+    tenants,
+    tickets,
+    users,
+)
+
+api_router = APIRouter()
+api_router.include_router(auth.router, prefix="/auth", tags=["superadmin-auth"])
+api_router.include_router(tenants.router, prefix="/tenants", tags=["superadmin-tenants"])
+api_router.include_router(users.router, prefix="/users", tags=["superadmin-users"])
+api_router.include_router(dids.router, prefix="/dids", tags=["superadmin-dids"])
+api_router.include_router(sip_trunks.router, prefix="/sip-trunks", tags=["superadmin-sip-trunks"])
+api_router.include_router(billing.router, prefix="/billing", tags=["superadmin-billing"])
+api_router.include_router(tickets.router, prefix="/tickets", tags=["superadmin-tickets"])
+api_router.include_router(audit.router, prefix="/audit", tags=["superadmin-audit"])
+api_router.include_router(analytics.router, prefix="/analytics", tags=["superadmin-analytics"])
+api_router.include_router(config.router, prefix="/config", tags=["superadmin-config"])

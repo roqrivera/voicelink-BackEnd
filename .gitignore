@@ -32,6 +32,9 @@ env/
 ENV/
 .venv/
 
+# Environment variables
+.env
+
 # Logs
 *.log
 logs/
