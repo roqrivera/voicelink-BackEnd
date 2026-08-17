@@ -167,6 +167,9 @@ async def archive_user(
     `is_active` is the same field `get_current_superadmin` checks). Fully
     reversible via `restore_user` below.
     """
+    if user_id == current_admin.id:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="You cannot archive your own account")
+
     existing = await _get_user_or_404(db, user_id)
     await db.users.update_one({"_id": ObjectId(user_id)}, {"$set": {"is_active": False}})
     doc = await db.users.find_one({"_id": ObjectId(user_id)})
@@ -188,6 +191,13 @@ async def restore_user(
     db: AsyncIOMotorDatabase = Depends(get_db),
     current_admin: SuperAdminOut = Depends(get_current_superadmin),
 ) -> UserOut:
+    # Unreachable in practice — an archived superadmin's token is already
+    # rejected by get_current_superadmin, so they could never be the
+    # `current_admin` calling this. Kept for defense in depth/symmetry with
+    # the other three status-changing endpoints below.
+    if user_id == current_admin.id:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="You cannot restore your own account")
+
     existing = await _get_user_or_404(db, user_id)
     await db.users.update_one({"_id": ObjectId(user_id)}, {"$set": {"is_active": True}})
     doc = await db.users.find_one({"_id": ObjectId(user_id)})
@@ -214,6 +224,9 @@ async def deactivate_user(
     the active/archived list (unlike archiving, which hides it). Blocks
     login the same way archiving does.
     """
+    if user_id == current_admin.id:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="You cannot deactivate your own account")
+
     existing = await _get_user_or_404(db, user_id)
     await db.users.update_one({"_id": ObjectId(user_id)}, {"$set": {"is_enabled": False}})
     doc = await db.users.find_one({"_id": ObjectId(user_id)})
@@ -235,6 +248,10 @@ async def activate_user(
     db: AsyncIOMotorDatabase = Depends(get_db),
     current_admin: SuperAdminOut = Depends(get_current_superadmin),
 ) -> UserOut:
+    # Unreachable in practice — see restore_user's identical guard above.
+    if user_id == current_admin.id:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="You cannot activate your own account")
+
     existing = await _get_user_or_404(db, user_id)
     await db.users.update_one({"_id": ObjectId(user_id)}, {"$set": {"is_enabled": True}})
     doc = await db.users.find_one({"_id": ObjectId(user_id)})
