@@ -8,20 +8,24 @@ from app.core.security import hash_password
 
 
 async def create_superadmin(email: str, password: str, full_name: str) -> None:
+    """Inserts a platform superadmin into the `users` collection — the same
+    collection tenant end-users live in, distinguished by `is_superadmin`
+    and a `hashed_password` (tenant users have neither)."""
     client = AsyncIOMotorClient(settings.MONGODB_URI)
     db = client[settings.MONGODB_DB_NAME]
 
-    existing = await db.superadmins.find_one({"email": email})
+    existing = await db.users.find_one({"email": email})
     if existing:
-        print(f"Superadmin with email {email} already exists.")
+        print(f"A user with email {email} already exists.")
         client.close()
         return
 
-    await db.superadmins.insert_one(
+    await db.users.insert_one(
         {
             "email": email,
             "full_name": full_name,
             "hashed_password": hash_password(password),
+            "is_superadmin": True,
             "is_active": True,
         }
     )

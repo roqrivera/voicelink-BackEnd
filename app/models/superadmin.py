@@ -1,20 +1,15 @@
-from datetime import datetime, timezone
-
 from pydantic import BaseModel, EmailStr, Field
-
-from app.models.common import MongoBaseModel, PyObjectId
-
-
-class SuperAdminInDB(MongoBaseModel):
-    id: PyObjectId = Field(default_factory=PyObjectId, alias="_id")
-    email: EmailStr
-    full_name: str
-    hashed_password: str
-    is_active: bool = True
-    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 
 class SuperAdminOut(BaseModel):
+    """Shape of the authenticated caller returned by `get_current_superadmin`.
+
+    There is no dedicated `superadmins` collection — a superadmin is just a
+    `users` document (see app/models/user.py) with `is_superadmin: true` and
+    a `hashed_password` set. This model only describes the safe subset of
+    that document every endpoint's `current_admin` dependency gets back.
+    """
+
     id: str
     email: EmailStr
     full_name: str
@@ -29,3 +24,16 @@ class LoginRequest(BaseModel):
 class TokenResponse(BaseModel):
     access_token: str
     token_type: str = "bearer"
+
+
+class SuperAdminCreate(BaseModel):
+    """Payload for inviting a new platform superadmin — grants full access
+    to this admin portal itself, unlike `UserCreate` (app/models/user.py)
+    which only ever creates a tenant end-user. There's no email-invite
+    pipeline (no SMTP configured in this backend), so the password is set
+    directly here and must be shared with the new admin out of band.
+    """
+
+    full_name: str = Field(min_length=1)
+    email: EmailStr
+    password: str = Field(min_length=8)
