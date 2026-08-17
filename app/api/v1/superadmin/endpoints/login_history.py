@@ -27,6 +27,8 @@ def _doc_to_out(doc: dict) -> LoginHistoryOut:
         device=doc["device"],
         browser=doc["browser"],
         location=doc["location"],
+        # Rows written before this field existed were always logins.
+        action=doc.get("action", "Login"),
     )
 
 

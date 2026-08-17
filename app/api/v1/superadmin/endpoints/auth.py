@@ -60,12 +60,46 @@ async def login(payload: LoginRequest, request: Request, db: AsyncIOMotorDatabas
                 "device": device,
                 "browser": browser,
                 "location": location,
+                "action": "Login",
             }
         )
     except Exception:
         pass
 
     return TokenResponse(access_token=access_token)
+
+
+@router.post("/logout", status_code=status.HTTP_204_NO_CONTENT)
+async def logout(
+    request: Request,
+    db: AsyncIOMotorDatabase = Depends(get_db),
+    current_admin: SuperAdminOut = Depends(get_current_superadmin),
+) -> None:
+    """Records a logout in the same `login_history` collection `/login`
+    writes to, distinguished by `action`, so the Login History screen can
+    show both. Best-effort exactly like the login-side recording — a
+    failure here should never stop the frontend from clearing its local
+    session.
+    """
+    try:
+        ip = client_ip(request)
+        device, browser = parse_user_agent(request.headers.get("user-agent"))
+        location = await resolve_location(ip)
+        await db.login_history.insert_one(
+            {
+                "user_id": current_admin.id,
+                "user_name": current_admin.full_name,
+                "user_email": current_admin.email,
+                "login_at": datetime.now(timezone.utc),
+                "ip_address": ip,
+                "device": device,
+                "browser": browser,
+                "location": location,
+                "action": "Logout",
+            }
+        )
+    except Exception:
+        pass
 
 
 @router.get("/me", response_model=SuperAdminOut)

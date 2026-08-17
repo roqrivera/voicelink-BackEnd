@@ -4,12 +4,17 @@ from typing import Literal
 from pydantic import BaseModel
 
 ActivityAction = Literal["add", "edit", "archive", "restore", "activate", "deactivate"]
+LoginHistoryAction = Literal["Login", "Logout"]
 
 
 class LoginHistoryOut(BaseModel):
-    """One successful superadmin login, recorded by the `/auth/login`
-    endpoint. There is no failed-login tracking here — this is an activity
-    record, not a security/brute-force monitor.
+    """One successful superadmin login or logout, recorded by the
+    `/auth/login` and `/auth/logout` endpoints respectively. There is no
+    failed-login tracking here — this is an activity record, not a
+    security/brute-force monitor. `login_at` is the event's own timestamp
+    for both kinds of row (kept as-is, rather than renamed, so existing
+    sorting/filtering by this field keeps working unmodified) — `action`
+    is what actually distinguishes a login from a logout.
     """
 
     id: str
@@ -21,6 +26,9 @@ class LoginHistoryOut(BaseModel):
     device: str
     browser: str
     location: str
+    # Defaults to "Login" so rows written before this field existed still
+    # deserialize correctly — every one of those actually was a login.
+    action: LoginHistoryAction = "Login"
 
 
 class PaginatedLoginHistory(BaseModel):
