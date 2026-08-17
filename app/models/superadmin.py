@@ -55,3 +55,18 @@ class ResetPasswordRequest(BaseModel):
 
 class ResetPasswordResponse(BaseModel):
     message: str
+
+
+class ChangePasswordRequest(BaseModel):
+    """Unlike `ResetPasswordRequest` (no prior session, proven only by an
+    emailed token), this is an authenticated superadmin changing their own
+    password from within the app — proven by their current password
+    instead.
+    """
+
+    current_password: str = Field(min_length=1)
+    new_password: str = Field(min_length=8)
+
+
+class ChangePasswordResponse(BaseModel):
+    message: str

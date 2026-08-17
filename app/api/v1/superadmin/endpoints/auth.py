@@ -1,5 +1,6 @@
 from datetime import datetime, timedelta, timezone
 
+from bson import ObjectId
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request, status
 from motor.motor_asyncio import AsyncIOMotorDatabase
 
@@ -15,6 +16,8 @@ from app.core.security import (
     verify_password,
 )
 from app.models.superadmin import (
+    ChangePasswordRequest,
+    ChangePasswordResponse,
     ForgotPasswordRequest,
     ForgotPasswordResponse,
     LoginRequest,
@@ -107,6 +110,24 @@ async def read_current_superadmin(
     current_admin: SuperAdminOut = Depends(get_current_superadmin),
 ) -> SuperAdminOut:
     return current_admin
+
+
+@router.post("/change-password", response_model=ChangePasswordResponse)
+async def change_password(
+    payload: ChangePasswordRequest,
+    db: AsyncIOMotorDatabase = Depends(get_db),
+    current_admin: SuperAdminOut = Depends(get_current_superadmin),
+) -> ChangePasswordResponse:
+    admin = await db.users.find_one({"_id": ObjectId(current_admin.id)})
+    if admin is None or not admin.get("hashed_password") or not verify_password(payload.current_password, admin["hashed_password"]):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Current password is incorrect")
+
+    await db.users.update_one(
+        {"_id": admin["_id"]},
+        {"$set": {"hashed_password": hash_password(payload.new_password)}},
+    )
+
+    return ChangePasswordResponse(message="Password changed successfully.")
 
 
 @router.post("/forgot-password", response_model=ForgotPasswordResponse)
