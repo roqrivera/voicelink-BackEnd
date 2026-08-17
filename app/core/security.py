@@ -1,3 +1,5 @@
+import hashlib
+import secrets
 from datetime import datetime, timedelta, timezone
 
 from jose import jwt
@@ -28,3 +30,22 @@ def decode_access_token(token: str) -> str:
     if subject is None:
         raise ValueError("Token missing subject")
     return subject
+
+
+def generate_reset_token() -> str:
+    """The raw, single-use password-reset token emailed to the user —
+    high-entropy (256 bits) on its own, so unlike a password it needs no
+    slow hashing scheme; see `hash_reset_token` for what's actually stored.
+    """
+    return secrets.token_urlsafe(32)
+
+
+def hash_reset_token(token: str) -> str:
+    """Only this hash is stored on the user's document — never the raw
+    token — so a database read (backup, dump, compromised replica) can't
+    be used to reset someone's password. A plain SHA-256 digest is
+    appropriate here (unlike `hash_password`'s bcrypt): the input is
+    already a random 256-bit value, not a low-entropy human-chosen
+    password, so there's nothing for a slow KDF to protect against.
+    """
+    return hashlib.sha256(token.encode("utf-8")).hexdigest()

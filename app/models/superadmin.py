@@ -30,10 +30,28 @@ class SuperAdminCreate(BaseModel):
     """Payload for inviting a new platform superadmin — grants full access
     to this admin portal itself, unlike `UserCreate` (app/models/user.py)
     which only ever creates a tenant end-user. There's no email-invite
-    pipeline (no SMTP configured in this backend), so the password is set
-    directly here and must be shared with the new admin out of band.
+    pipeline for account creation itself (see app/core/email.py for the
+    separate forgot-password mail flow), so the password is set directly
+    here and must be shared with the new admin out of band.
     """
 
     full_name: str = Field(min_length=1)
     email: EmailStr
     password: str = Field(min_length=8)
+
+
+class ForgotPasswordRequest(BaseModel):
+    email: EmailStr
+
+
+class ForgotPasswordResponse(BaseModel):
+    message: str
+
+
+class ResetPasswordRequest(BaseModel):
+    token: str = Field(min_length=1)
+    new_password: str = Field(min_length=8)
+
+
+class ResetPasswordResponse(BaseModel):
+    message: str

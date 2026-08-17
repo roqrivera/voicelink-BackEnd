@@ -11,6 +11,7 @@ from app.api.v1.superadmin.endpoints import (
     dids,
     login_history,
     sip_trunks,
+    smtp_settings,
     tenants,
     tickets,
     users,
@@ -30,3 +31,4 @@ api_router.include_router(tickets.router, prefix="/tickets", tags=["superadmin-t
 api_router.include_router(audit.router, prefix="/audit", tags=["superadmin-audit"])
 api_router.include_router(analytics.router, prefix="/analytics", tags=["superadmin-analytics"])
 api_router.include_router(config.router, prefix="/config", tags=["superadmin-config"])
+api_router.include_router(smtp_settings.router, prefix="/smtp-settings", tags=["superadmin-smtp-settings"])
