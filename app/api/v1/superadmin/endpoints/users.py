@@ -7,6 +7,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from motor.motor_asyncio import AsyncIOMotorDatabase
 
 from app.api.deps import get_current_superadmin, get_db
+from app.core.activity_log import record_activity
 from app.models.superadmin import SuperAdminOut
 from app.models.user import PaginatedUsers, Role, UserCreate, UserOut, UserUpdate
 
@@ -106,6 +107,16 @@ async def create_user(
     }
     result = await db.users.insert_one(doc)
     doc["_id"] = result.inserted_id
+
+    await record_activity(
+        db,
+        actor_id=current_admin.id,
+        actor_name=current_admin.full_name,
+        action="add",
+        target_user_id=str(result.inserted_id),
+        target_user_name=doc["full_name"],
+        details=f"Role: {payload.role}",
+    )
     return _doc_to_user_out(doc)
 
 
@@ -131,6 +142,17 @@ async def update_user(
         await db.users.update_one({"_id": ObjectId(user_id)}, {"$set": updates})
 
     doc = await db.users.find_one({"_id": ObjectId(user_id)})
+
+    if updates:
+        await record_activity(
+            db,
+            actor_id=current_admin.id,
+            actor_name=current_admin.full_name,
+            action="edit",
+            target_user_id=user_id,
+            target_user_name=doc["full_name"],
+            details=f"Updated: {', '.join(sorted(updates))}",
+        )
     return _doc_to_user_out(doc)
 
 
@@ -145,9 +167,18 @@ async def archive_user(
     `is_active` is the same field `get_current_superadmin` checks). Fully
     reversible via `restore_user` below.
     """
-    await _get_user_or_404(db, user_id)
+    existing = await _get_user_or_404(db, user_id)
     await db.users.update_one({"_id": ObjectId(user_id)}, {"$set": {"is_active": False}})
     doc = await db.users.find_one({"_id": ObjectId(user_id)})
+
+    await record_activity(
+        db,
+        actor_id=current_admin.id,
+        actor_name=current_admin.full_name,
+        action="archive",
+        target_user_id=user_id,
+        target_user_name=existing["full_name"],
+    )
     return _doc_to_user_out(doc)
 
 
@@ -157,9 +188,18 @@ async def restore_user(
     db: AsyncIOMotorDatabase = Depends(get_db),
     current_admin: SuperAdminOut = Depends(get_current_superadmin),
 ) -> UserOut:
-    await _get_user_or_404(db, user_id)
+    existing = await _get_user_or_404(db, user_id)
     await db.users.update_one({"_id": ObjectId(user_id)}, {"$set": {"is_active": True}})
     doc = await db.users.find_one({"_id": ObjectId(user_id)})
+
+    await record_activity(
+        db,
+        actor_id=current_admin.id,
+        actor_name=current_admin.full_name,
+        action="restore",
+        target_user_id=user_id,
+        target_user_name=existing["full_name"],
+    )
     return _doc_to_user_out(doc)
 
 
@@ -174,9 +214,18 @@ async def deactivate_user(
     the active/archived list (unlike archiving, which hides it). Blocks
     login the same way archiving does.
     """
-    await _get_user_or_404(db, user_id)
+    existing = await _get_user_or_404(db, user_id)
     await db.users.update_one({"_id": ObjectId(user_id)}, {"$set": {"is_enabled": False}})
     doc = await db.users.find_one({"_id": ObjectId(user_id)})
+
+    await record_activity(
+        db,
+        actor_id=current_admin.id,
+        actor_name=current_admin.full_name,
+        action="deactivate",
+        target_user_id=user_id,
+        target_user_name=existing["full_name"],
+    )
     return _doc_to_user_out(doc)
 
 
@@ -186,7 +235,16 @@ async def activate_user(
     db: AsyncIOMotorDatabase = Depends(get_db),
     current_admin: SuperAdminOut = Depends(get_current_superadmin),
 ) -> UserOut:
-    await _get_user_or_404(db, user_id)
+    existing = await _get_user_or_404(db, user_id)
     await db.users.update_one({"_id": ObjectId(user_id)}, {"$set": {"is_enabled": True}})
     doc = await db.users.find_one({"_id": ObjectId(user_id)})
+
+    await record_activity(
+        db,
+        actor_id=current_admin.id,
+        actor_name=current_admin.full_name,
+        action="activate",
+        target_user_id=user_id,
+        target_user_name=existing["full_name"],
+    )
     return _doc_to_user_out(doc)
