@@ -44,6 +44,16 @@ class Settings(BaseSettings):
     # anyone with the default could decrypt any stored secret.
     ENCRYPTION_KEY: str = "TGtaX9bkRDlrfIB6GRp4rSlaM6N8j53x1upqQmOfhoo="
 
+    # IONOS Object Storage (S3-compatible) — a bucket named after its
+    # unique "vl-XXXXXXX" code is provisioned for every new tenant (see
+    # app/core/storage.py). Left blank by default; tenant creation fails
+    # with a clear error until these are set, rather than silently
+    # skipping provisioning — see create_tenant in endpoints/tenants.py.
+    IONOS_S3_ENDPOINT_URL: str = ""
+    IONOS_S3_ACCESS_KEY: str = ""
+    IONOS_S3_SECRET_KEY: str = ""
+    IONOS_S3_REGION: str = "de"
+
     @property
     def cors_origins_list(self) -> list[str]:
         return [origin.strip() for origin in self.CORS_ORIGINS.split(",") if origin.strip()]
