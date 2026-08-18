@@ -14,14 +14,14 @@ async def create_superadmin(
     db: AsyncIOMotorDatabase = Depends(get_db),
     current_admin: SuperAdminOut = Depends(get_current_superadmin),
 ) -> SuperAdminOut:
-    # Email uniqueness spans the whole users collection, tenant end-users
-    # included — see app/api/v1/superadmin/endpoints/users.py.
-    existing = await db.users.find_one({"email": payload.email})
+    # Email uniqueness spans the whole superadmins collection, tenant
+    # end-users included — see app/api/v1/superadmin/endpoints/users.py.
+    existing = await db.superadmins.find_one({"email": payload.email})
     if existing:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="A user with this email already exists")
 
     full_name = payload.full_name.strip()
-    result = await db.users.insert_one(
+    result = await db.superadmins.insert_one(
         {
             "email": payload.email,
             "full_name": full_name,

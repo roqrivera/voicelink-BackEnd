@@ -37,7 +37,7 @@ async def get_current_superadmin(
     # flag off immediately invalidates any token they already hold. Both
     # is_active (archived) and is_enabled (deactivated) block access —
     # they're independent flags, but either one should revoke a session.
-    admin = await db.users.find_one({"_id": ObjectId(subject), "is_superadmin": True})
+    admin = await db.superadmins.find_one({"_id": ObjectId(subject), "is_superadmin": True})
     if admin is None or not admin.get("is_active", True) or not admin.get("is_enabled", True):
         raise credentials_error
 

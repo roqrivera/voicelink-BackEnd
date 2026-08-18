@@ -38,7 +38,7 @@ async def _get_user_or_404(db: AsyncIOMotorDatabase, user_id: str) -> dict:
     if not ObjectId.is_valid(user_id):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
 
-    doc = await db.users.find_one({"_id": ObjectId(user_id)})
+    doc = await db.superadmins.find_one({"_id": ObjectId(user_id)})
     if doc is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
     return doc
@@ -74,9 +74,9 @@ async def list_users(
     sort_field = sort_by if sort_by in SORTABLE_FIELDS else "full_name"
     sort_direction = 1 if sort_dir == "asc" else -1
 
-    total = await db.users.count_documents(query)
+    total = await db.superadmins.count_documents(query)
     skip = (page - 1) * page_size
-    docs = await db.users.find(query).sort(sort_field, sort_direction).skip(skip).limit(page_size).to_list(length=page_size)
+    docs = await db.superadmins.find(query).sort(sort_field, sort_direction).skip(skip).limit(page_size).to_list(length=page_size)
 
     return PaginatedUsers(
         items=[_doc_to_user_out(doc) for doc in docs],
@@ -92,7 +92,7 @@ async def create_user(
     db: AsyncIOMotorDatabase = Depends(get_db),
     current_admin: SuperAdminOut = Depends(get_current_superadmin),
 ) -> UserOut:
-    existing = await db.users.find_one({"email": payload.email})
+    existing = await db.superadmins.find_one({"email": payload.email})
     if existing:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="A user with this email already exists")
 
@@ -105,7 +105,7 @@ async def create_user(
         "is_active": True,
         "is_enabled": True,
     }
-    result = await db.users.insert_one(doc)
+    result = await db.superadmins.insert_one(doc)
     doc["_id"] = result.inserted_id
 
     await record_activity(
@@ -134,14 +134,14 @@ async def update_user(
         updates["full_name"] = updates["full_name"].strip()
 
     if "email" in updates:
-        conflict = await db.users.find_one({"email": updates["email"], "_id": {"$ne": ObjectId(user_id)}})
+        conflict = await db.superadmins.find_one({"email": updates["email"], "_id": {"$ne": ObjectId(user_id)}})
         if conflict:
             raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="A user with this email already exists")
 
     if updates:
-        await db.users.update_one({"_id": ObjectId(user_id)}, {"$set": updates})
+        await db.superadmins.update_one({"_id": ObjectId(user_id)}, {"$set": updates})
 
-    doc = await db.users.find_one({"_id": ObjectId(user_id)})
+    doc = await db.superadmins.find_one({"_id": ObjectId(user_id)})
 
     if updates:
         await record_activity(
@@ -171,8 +171,8 @@ async def archive_user(
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="You cannot archive your own account")
 
     existing = await _get_user_or_404(db, user_id)
-    await db.users.update_one({"_id": ObjectId(user_id)}, {"$set": {"is_active": False}})
-    doc = await db.users.find_one({"_id": ObjectId(user_id)})
+    await db.superadmins.update_one({"_id": ObjectId(user_id)}, {"$set": {"is_active": False}})
+    doc = await db.superadmins.find_one({"_id": ObjectId(user_id)})
 
     await record_activity(
         db,
@@ -199,8 +199,8 @@ async def restore_user(
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="You cannot restore your own account")
 
     existing = await _get_user_or_404(db, user_id)
-    await db.users.update_one({"_id": ObjectId(user_id)}, {"$set": {"is_active": True}})
-    doc = await db.users.find_one({"_id": ObjectId(user_id)})
+    await db.superadmins.update_one({"_id": ObjectId(user_id)}, {"$set": {"is_active": True}})
+    doc = await db.superadmins.find_one({"_id": ObjectId(user_id)})
 
     await record_activity(
         db,
@@ -228,8 +228,8 @@ async def deactivate_user(
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="You cannot deactivate your own account")
 
     existing = await _get_user_or_404(db, user_id)
-    await db.users.update_one({"_id": ObjectId(user_id)}, {"$set": {"is_enabled": False}})
-    doc = await db.users.find_one({"_id": ObjectId(user_id)})
+    await db.superadmins.update_one({"_id": ObjectId(user_id)}, {"$set": {"is_enabled": False}})
+    doc = await db.superadmins.find_one({"_id": ObjectId(user_id)})
 
     await record_activity(
         db,
@@ -253,8 +253,8 @@ async def activate_user(
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="You cannot activate your own account")
 
     existing = await _get_user_or_404(db, user_id)
-    await db.users.update_one({"_id": ObjectId(user_id)}, {"$set": {"is_enabled": True}})
-    doc = await db.users.find_one({"_id": ObjectId(user_id)})
+    await db.superadmins.update_one({"_id": ObjectId(user_id)}, {"$set": {"is_enabled": True}})
+    doc = await db.superadmins.find_one({"_id": ObjectId(user_id)})
 
     await record_activity(
         db,

@@ -4,10 +4,11 @@ from pydantic import BaseModel, EmailStr, Field
 class SuperAdminOut(BaseModel):
     """Shape of the authenticated caller returned by `get_current_superadmin`.
 
-    There is no dedicated `superadmins` collection — a superadmin is just a
-    `users` document (see app/models/user.py) with `is_superadmin: true` and
-    a `hashed_password` set. This model only describes the safe subset of
-    that document every endpoint's `current_admin` dependency gets back.
+    The `superadmins` collection holds both platform superadmin accounts
+    and tenant end-users (see app/models/user.py) — a superadmin is just a
+    document in it with `is_superadmin: true` and a `hashed_password` set.
+    This model only describes the safe subset of that document every
+    endpoint's `current_admin` dependency gets back.
     """
 
     id: str

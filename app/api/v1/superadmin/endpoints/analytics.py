@@ -14,7 +14,7 @@ async def get_summary(
 ) -> dict:
     return {
         "tenants": await db.tenants.count_documents({}),
-        "users": await db.users.count_documents({}),
+        "users": await db.superadmins.count_documents({}),
         "dids": await db.dids.count_documents({}),
         "sip_trunks": await db.sip_trunks.count_documents({}),
         "open_tickets": await db.tickets.count_documents({"status": "open"}),

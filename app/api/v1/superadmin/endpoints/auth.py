@@ -38,7 +38,7 @@ _INVALID_RESET_LINK = "This reset link is invalid or has expired."
 
 @router.post("/login", response_model=TokenResponse)
 async def login(payload: LoginRequest, request: Request, db: AsyncIOMotorDatabase = Depends(get_db)) -> TokenResponse:
-    admin = await db.users.find_one({"email": payload.email, "is_superadmin": True})
+    admin = await db.superadmins.find_one({"email": payload.email, "is_superadmin": True})
     if not admin or not admin.get("hashed_password") or not verify_password(payload.password, admin["hashed_password"]):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid email or password")
 
@@ -118,11 +118,11 @@ async def change_password(
     db: AsyncIOMotorDatabase = Depends(get_db),
     current_admin: SuperAdminOut = Depends(get_current_superadmin),
 ) -> ChangePasswordResponse:
-    admin = await db.users.find_one({"_id": ObjectId(current_admin.id)})
+    admin = await db.superadmins.find_one({"_id": ObjectId(current_admin.id)})
     if admin is None or not admin.get("hashed_password") or not verify_password(payload.current_password, admin["hashed_password"]):
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Current password is incorrect")
 
-    await db.users.update_one(
+    await db.superadmins.update_one(
         {"_id": admin["_id"]},
         {"$set": {"hashed_password": hash_password(payload.new_password)}},
     )
@@ -136,7 +136,7 @@ async def forgot_password(
     background_tasks: BackgroundTasks,
     db: AsyncIOMotorDatabase = Depends(get_db),
 ) -> ForgotPasswordResponse:
-    admin = await db.users.find_one({"email": payload.email, "is_superadmin": True})
+    admin = await db.superadmins.find_one({"email": payload.email, "is_superadmin": True})
 
     # Same scoping as /login (is_superadmin, is_active, is_enabled) — an
     # account that couldn't log in shouldn't be able to reset its way
@@ -146,7 +146,7 @@ async def forgot_password(
         raw_token = generate_reset_token()
         expires_at = datetime.now(timezone.utc) + timedelta(minutes=settings.PASSWORD_RESET_TOKEN_EXPIRE_MINUTES)
 
-        await db.users.update_one(
+        await db.superadmins.update_one(
             {"_id": admin["_id"]},
             {"$set": {"reset_token_hash": hash_reset_token(raw_token), "reset_token_expires_at": expires_at}},
         )
@@ -180,7 +180,7 @@ async def forgot_password(
 
 @router.post("/reset-password", response_model=ResetPasswordResponse)
 async def reset_password(payload: ResetPasswordRequest, db: AsyncIOMotorDatabase = Depends(get_db)) -> ResetPasswordResponse:
-    admin = await db.users.find_one({"reset_token_hash": hash_reset_token(payload.token), "is_superadmin": True})
+    admin = await db.superadmins.find_one({"reset_token_hash": hash_reset_token(payload.token), "is_superadmin": True})
     if admin is None:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=_INVALID_RESET_LINK)
 
@@ -191,7 +191,7 @@ async def reset_password(payload: ResetPasswordRequest, db: AsyncIOMotorDatabase
     if expires_at is None or expires_at.replace(tzinfo=timezone.utc) < datetime.now(timezone.utc):
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=_INVALID_RESET_LINK)
 
-    await db.users.update_one(
+    await db.superadmins.update_one(
         {"_id": admin["_id"]},
         {
             "$set": {"hashed_password": hash_password(payload.new_password)},
