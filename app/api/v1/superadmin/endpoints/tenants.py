@@ -68,6 +68,7 @@ def _doc_to_out(doc: dict) -> TenantOut:
         # Motor/PyMongo hands back a naive datetime even though this was
         # stored UTC-aware — reattach tzinfo before serializing.
         created_at=doc["created_at"].replace(tzinfo=timezone.utc),
+        is_active=doc.get("is_active", True),
     )
 
 
@@ -109,10 +110,11 @@ async def list_tenants(
     sort_dir: Literal["asc", "desc"] = Query(default="asc"),
     search: str | None = Query(default=None),
     status: str | None = Query(default=None, description="Filter to one of Active/Degraded/Suspended/Trial"),
+    archived: bool = Query(default=False, description="False (default): active tenants. True: archived tenants."),
     db: AsyncIOMotorDatabase = Depends(get_db),
     current_admin: SuperAdminOut = Depends(get_current_superadmin),
 ) -> PaginatedTenants:
-    query: dict = {}
+    query: dict = {"is_active": not archived}
     if status and status in _STATUSES:
         query["status"] = status
 
@@ -141,7 +143,9 @@ async def tenant_status_summary(
     db: AsyncIOMotorDatabase = Depends(get_db),
     current_admin: SuperAdminOut = Depends(get_current_superadmin),
 ) -> TenantStatusSummary:
-    counts = {s: await db.tenants.count_documents({"status": s}) for s in _STATUSES}
+    # Matches list_tenants' default (non-archived) view — an archived
+    # tenant shouldn't count toward the active dashboard stats.
+    counts = {s: await db.tenants.count_documents({"status": s, "is_active": True}) for s in _STATUSES}
     return TenantStatusSummary(
         active=counts["Active"],
         degraded=counts["Degraded"],
@@ -271,4 +275,33 @@ async def update_tenant(
         await db.tenants.update_one({"_id": existing["_id"]}, {"$set": updates})
 
     doc = await db.tenants.find_one({"_id": existing["_id"]})
+    return _doc_to_out(doc)
+
+
+@router.post("/{tenant_id}/archive", response_model=TenantOut)
+async def archive_tenant(
+    tenant_id: str,
+    db: AsyncIOMotorDatabase = Depends(get_db),
+    current_admin: SuperAdminOut = Depends(get_current_superadmin),
+) -> TenantOut:
+    """No hard delete for tenants — this hides the tenant from the active
+    list (`is_active=False`). Fully reversible via `restore_tenant` below.
+    Independent of `status` (Active/Degraded/Suspended/Trial), same as
+    PlatformUser's is_active vs is_enabled split.
+    """
+    await _get_tenant_or_404(db, tenant_id)
+    await db.tenants.update_one({"_id": ObjectId(tenant_id)}, {"$set": {"is_active": False}})
+    doc = await db.tenants.find_one({"_id": ObjectId(tenant_id)})
+    return _doc_to_out(doc)
+
+
+@router.post("/{tenant_id}/restore", response_model=TenantOut)
+async def restore_tenant(
+    tenant_id: str,
+    db: AsyncIOMotorDatabase = Depends(get_db),
+    current_admin: SuperAdminOut = Depends(get_current_superadmin),
+) -> TenantOut:
+    await _get_tenant_or_404(db, tenant_id)
+    await db.tenants.update_one({"_id": ObjectId(tenant_id)}, {"$set": {"is_active": True}})
+    doc = await db.tenants.find_one({"_id": ObjectId(tenant_id)})
     return _doc_to_out(doc)

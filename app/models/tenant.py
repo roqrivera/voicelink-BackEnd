@@ -49,6 +49,12 @@ class TenantOut(BaseModel):
     status: TenantStatus
     created_at: datetime
 
+    # The archive flag — independent of `status` (Active/Degraded/
+    # Suspended/Trial), same as PlatformUser.is_active vs is_enabled.
+    # There is no hard delete for tenants; archiving just hides the row
+    # from the active list, reversible via `POST /tenants/{id}/restore`.
+    is_active: bool = True
+
 
 class PaginatedTenants(BaseModel):
     items: list[TenantOut]
