@@ -53,6 +53,7 @@ async def list_users(
     search: str | None = Query(default=None),
     role: Role | None = Query(default=None),
     archived: bool = Query(default=False, description="False (default): active users. True: archived users."),
+    enabled: bool | None = Query(default=None, description="Filter by the Active/Inactive status chip — omit for both."),
     db: AsyncIOMotorDatabase = Depends(get_db),
     current_admin: SuperAdminOut = Depends(get_current_superadmin),
 ) -> PaginatedUsers:
@@ -63,6 +64,9 @@ async def list_users(
 
     if role is not None:
         query["role"] = role
+
+    if enabled is not None:
+        query["is_enabled"] = enabled
 
     if search:
         pattern = re.compile(re.escape(search.strip()), re.IGNORECASE)
