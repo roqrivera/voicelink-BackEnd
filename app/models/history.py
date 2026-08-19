@@ -60,3 +60,29 @@ class PaginatedActivityHistory(BaseModel):
     total: int
     page: int
     page_size: int
+
+
+class TenantActivityHistoryOut(BaseModel):
+    """One tenant-management action taken by a superadmin (see
+    app/core/activity_log.py) — Add/Edit/Archive/Restore on a row in the
+    All Tenants screen. `actor` is the superadmin who performed the
+    action; `target` is the tenant record it was performed on. A separate
+    stream from `ActivityHistoryOut` (Users screen) rather than a shared
+    one, since a tenant action has no equivalent to Activate/Deactivate.
+    """
+
+    id: str
+    actor_id: str
+    actor_name: str
+    action: ActivityAction
+    target_tenant_id: str
+    target_tenant_name: str
+    details: str | None = None
+    created_at: datetime
+
+
+class PaginatedTenantActivityHistory(BaseModel):
+    items: list[TenantActivityHistoryOut]
+    total: int
+    page: int
+    page_size: int

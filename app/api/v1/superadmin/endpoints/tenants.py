@@ -9,6 +9,7 @@ from motor.motor_asyncio import AsyncIOMotorDatabase
 from starlette.concurrency import run_in_threadpool
 
 from app.api.deps import get_current_superadmin, get_db
+from app.core.activity_log import record_tenant_activity
 from app.core.config import settings
 from app.core.email import get_active_smtp_config, send_email
 from app.core.storage import BucketProvisioningError, create_tenant_bucket
@@ -209,6 +210,16 @@ async def create_tenant(
     result = await db.tenants.insert_one(doc)
     doc["_id"] = result.inserted_id
 
+    await record_tenant_activity(
+        db,
+        actor_id=current_admin.id,
+        actor_name=current_admin.full_name,
+        action="add",
+        target_tenant_id=str(result.inserted_id),
+        target_tenant_name=doc["name"],
+        details=f"Plan: {payload.plan}",
+    )
+
     if payload.send_welcome_email:
         # Best-effort — unlike the bucket above, a failed welcome email
         # shouldn't undo an already-successfully-provisioned tenant.
@@ -275,6 +286,17 @@ async def update_tenant(
         await db.tenants.update_one({"_id": existing["_id"]}, {"$set": updates})
 
     doc = await db.tenants.find_one({"_id": existing["_id"]})
+
+    if updates:
+        await record_tenant_activity(
+            db,
+            actor_id=current_admin.id,
+            actor_name=current_admin.full_name,
+            action="edit",
+            target_tenant_id=tenant_id,
+            target_tenant_name=doc["name"],
+            details=f"Updated: {', '.join(sorted(updates))}",
+        )
     return _doc_to_out(doc)
 
 
@@ -289,9 +311,18 @@ async def archive_tenant(
     Independent of `status` (Active/Degraded/Suspended/Trial), same as
     PlatformUser's is_active vs is_enabled split.
     """
-    await _get_tenant_or_404(db, tenant_id)
+    existing = await _get_tenant_or_404(db, tenant_id)
     await db.tenants.update_one({"_id": ObjectId(tenant_id)}, {"$set": {"is_active": False}})
     doc = await db.tenants.find_one({"_id": ObjectId(tenant_id)})
+
+    await record_tenant_activity(
+        db,
+        actor_id=current_admin.id,
+        actor_name=current_admin.full_name,
+        action="archive",
+        target_tenant_id=tenant_id,
+        target_tenant_name=existing["name"],
+    )
     return _doc_to_out(doc)
 
 
@@ -301,7 +332,16 @@ async def restore_tenant(
     db: AsyncIOMotorDatabase = Depends(get_db),
     current_admin: SuperAdminOut = Depends(get_current_superadmin),
 ) -> TenantOut:
-    await _get_tenant_or_404(db, tenant_id)
+    existing = await _get_tenant_or_404(db, tenant_id)
     await db.tenants.update_one({"_id": ObjectId(tenant_id)}, {"$set": {"is_active": True}})
     doc = await db.tenants.find_one({"_id": ObjectId(tenant_id)})
+
+    await record_tenant_activity(
+        db,
+        actor_id=current_admin.id,
+        actor_name=current_admin.full_name,
+        action="restore",
+        target_tenant_id=tenant_id,
+        target_tenant_name=existing["name"],
+    )
     return _doc_to_out(doc)

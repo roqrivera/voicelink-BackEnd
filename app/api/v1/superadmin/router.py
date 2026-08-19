@@ -12,6 +12,7 @@ from app.api.v1.superadmin.endpoints import (
     login_history,
     sip_trunks,
     smtp_settings,
+    tenant_activity_history,
     tenants,
     tickets,
     users,
@@ -24,6 +25,9 @@ api_router.include_router(tenants.router, prefix="/tenants", tags=["superadmin-t
 api_router.include_router(users.router, prefix="/users", tags=["superadmin-users"])
 api_router.include_router(login_history.router, prefix="/login-history", tags=["superadmin-login-history"])
 api_router.include_router(activity_history.router, prefix="/activity-history", tags=["superadmin-activity-history"])
+api_router.include_router(
+    tenant_activity_history.router, prefix="/tenant-activity-history", tags=["superadmin-tenant-activity-history"]
+)
 api_router.include_router(dids.router, prefix="/dids", tags=["superadmin-dids"])
 api_router.include_router(sip_trunks.router, prefix="/sip-trunks", tags=["superadmin-sip-trunks"])
 api_router.include_router(billing.router, prefix="/billing", tags=["superadmin-billing"])
