@@ -40,8 +40,19 @@ _INVALID_RESET_LINK = "This reset link is invalid or has expired."
 
 @router.post("/login", response_model=TokenResponse)
 async def login(payload: LoginRequest, request: Request, db: AsyncIOMotorDatabase = Depends(get_db)) -> TokenResponse:
-    admin = await db.superadmins.find_one({"email": payload.email, "is_superadmin": True})
-    if not admin or not admin.get("hashed_password") or not verify_password(payload.password, admin["hashed_password"]):
+    # A decrypt failure gets the exact same generic error as a wrong
+    # email/password below — unlike change-password (an authenticated,
+    # low-traffic endpoint), login is public and unauthenticated, so it
+    # must never let a caller distinguish "bad ciphertext" from "wrong
+    # credentials" — that distinction would itself be an oracle.
+    try:
+        email = decrypt_rsa(payload.email)
+        password = decrypt_rsa(payload.password)
+    except (ValueError, RsaNotConfiguredError) as exc:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid email or password") from exc
+
+    admin = await db.superadmins.find_one({"email": email, "is_superadmin": True})
+    if not admin or not admin.get("hashed_password") or not verify_password(password, admin["hashed_password"]):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid email or password")
 
     if not admin.get("is_active", True) or not admin.get("is_enabled", True):

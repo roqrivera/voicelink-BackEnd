@@ -18,8 +18,17 @@ class SuperAdminOut(BaseModel):
 
 
 class LoginRequest(BaseModel):
-    email: EmailStr
-    password: str
+    """Both fields are RSA-OAEP-SHA256-encrypted (base64-encoded) with the
+    public key from `GET /auth/public-key`, not plaintext — see
+    app/core/rsa_crypto.py. `email` can't be typed `EmailStr` here since
+    the raw value is ciphertext, not an actual email address — that
+    validation happens implicitly in the endpoint (a malformed decrypted
+    email just won't match any account, the same "Invalid email or
+    password" outcome as a wrong one).
+    """
+
+    email: str = Field(min_length=1)
+    password: str = Field(min_length=1)
 
 
 class TokenResponse(BaseModel):
