@@ -166,7 +166,16 @@ async def forgot_password(
     background_tasks: BackgroundTasks,
     db: AsyncIOMotorDatabase = Depends(get_db),
 ) -> ForgotPasswordResponse:
-    admin = await db.superadmins.find_one({"email": payload.email, "is_superadmin": True})
+    # A decrypt failure is treated exactly like "no matching account"
+    # below (admin stays None) — this endpoint's whole point is a response
+    # that's identical either way, so a bad ciphertext must be invisible
+    # too, not a distinct error.
+    try:
+        email = decrypt_rsa(payload.email)
+    except (ValueError, RsaNotConfiguredError):
+        email = None
+
+    admin = await db.superadmins.find_one({"email": email, "is_superadmin": True}) if email else None
 
     # Same scoping as /login (is_superadmin, is_active, is_enabled) — an
     # account that couldn't log in shouldn't be able to reset its way
@@ -210,7 +219,19 @@ async def forgot_password(
 
 @router.post("/reset-password", response_model=ResetPasswordResponse)
 async def reset_password(payload: ResetPasswordRequest, db: AsyncIOMotorDatabase = Depends(get_db)) -> ResetPasswordResponse:
-    admin = await db.superadmins.find_one({"reset_token_hash": hash_reset_token(payload.token), "is_superadmin": True})
+    # A decrypt failure gets the same generic "invalid or expired" message
+    # as a bad/stale token below — no distinct error, for the same
+    # anti-enumeration reason as the other auth endpoints.
+    try:
+        token = decrypt_rsa(payload.token)
+        new_password = decrypt_rsa(payload.new_password)
+    except (ValueError, RsaNotConfiguredError) as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=_INVALID_RESET_LINK) from exc
+
+    if len(new_password) < 8:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="New password must be at least 8 characters")
+
+    admin = await db.superadmins.find_one({"reset_token_hash": hash_reset_token(token), "is_superadmin": True})
     if admin is None:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=_INVALID_RESET_LINK)
 
@@ -224,7 +245,7 @@ async def reset_password(payload: ResetPasswordRequest, db: AsyncIOMotorDatabase
     await db.superadmins.update_one(
         {"_id": admin["_id"]},
         {
-            "$set": {"hashed_password": hash_password(payload.new_password)},
+            "$set": {"hashed_password": hash_password(new_password)},
             "$unset": {"reset_token_hash": "", "reset_token_expires_at": ""},
         },
     )

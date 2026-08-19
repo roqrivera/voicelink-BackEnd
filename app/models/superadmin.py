@@ -51,7 +51,15 @@ class SuperAdminCreate(BaseModel):
 
 
 class ForgotPasswordRequest(BaseModel):
-    email: EmailStr
+    """`email` is RSA-OAEP-SHA256-encrypted (base64-encoded) with the
+    public key from `GET /auth/public-key`, not plaintext — see
+    app/core/rsa_crypto.py. Can't be typed `EmailStr` here for the same
+    reason as `LoginRequest.email` — the raw value is ciphertext. A
+    decrypt failure is treated exactly like "no matching account" in the
+    endpoint, preserving the same generic response either way.
+    """
+
+    email: str = Field(min_length=1)
 
 
 class ForgotPasswordResponse(BaseModel):
@@ -59,8 +67,15 @@ class ForgotPasswordResponse(BaseModel):
 
 
 class ResetPasswordRequest(BaseModel):
+    """Both fields are RSA-OAEP-SHA256-encrypted (base64-encoded) with the
+    public key from `GET /auth/public-key`, not plaintext — see
+    app/core/rsa_crypto.py. The real min-length-8 check on the decrypted
+    new_password happens in the endpoint itself, after decryption; the
+    `min_length=1` here just rejects an empty/missing field.
+    """
+
     token: str = Field(min_length=1)
-    new_password: str = Field(min_length=8)
+    new_password: str = Field(min_length=1)
 
 
 class ResetPasswordResponse(BaseModel):
