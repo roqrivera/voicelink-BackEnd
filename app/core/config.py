@@ -54,6 +54,15 @@ class Settings(BaseSettings):
     IONOS_S3_SECRET_KEY: str = ""
     IONOS_S3_REGION: str = "de"
 
+    # RSA private key (PEM) decrypting the change-password request body —
+    # the frontend encrypts current_password/new_password with the
+    # matching public key (see app/core/rsa_crypto.py and the
+    # GET /auth/public-key endpoint) before sending them, so DevTools/
+    # network logs/proxies never see the plaintext values. Blank by
+    # default; generate a real one for every deployment the same way
+    # ENCRYPTION_KEY's comment does above, with the one-liner in .env.
+    RSA_PRIVATE_KEY_PEM: str = ""
+
     @property
     def cors_origins_list(self) -> list[str]:
         return [origin.strip() for origin in self.CORS_ORIGINS.split(",") if origin.strip()]

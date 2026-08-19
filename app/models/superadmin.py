@@ -63,11 +63,26 @@ class ChangePasswordRequest(BaseModel):
     emailed token), this is an authenticated superadmin changing their own
     password from within the app — proven by their current password
     instead.
+
+    Both fields are RSA-OAEP-SHA256-encrypted (base64-encoded) with the
+    public key from `GET /auth/public-key`, not plaintext — see
+    app/core/rsa_crypto.py. The real min-length-8 check on the decrypted
+    new_password happens in the endpoint itself, after decryption; the
+    `min_length=1` here just rejects an empty/missing field.
     """
 
     current_password: str = Field(min_length=1)
-    new_password: str = Field(min_length=8)
+    new_password: str = Field(min_length=1)
 
 
 class ChangePasswordResponse(BaseModel):
     message: str
+
+
+class PublicKeyResponse(BaseModel):
+    """The RSA public key (PEM) the frontend encrypts change-password
+    payloads with — see app/core/rsa_crypto.py. Not secret; unauthenticated
+    on purpose, the same way a JWKS endpoint would be.
+    """
+
+    public_key: str

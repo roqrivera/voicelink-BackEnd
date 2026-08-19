@@ -8,6 +8,7 @@ from app.api.deps import get_current_superadmin, get_db
 from app.core.config import settings
 from app.core.email import get_active_smtp_config, send_email
 from app.core.request_info import client_ip, parse_user_agent, resolve_location
+from app.core.rsa_crypto import RsaNotConfiguredError, decrypt_rsa, get_public_key_pem
 from app.core.security import (
     create_access_token,
     generate_reset_token,
@@ -21,6 +22,7 @@ from app.models.superadmin import (
     ForgotPasswordRequest,
     ForgotPasswordResponse,
     LoginRequest,
+    PublicKeyResponse,
     ResetPasswordRequest,
     ResetPasswordResponse,
     SuperAdminOut,
@@ -112,19 +114,36 @@ async def read_current_superadmin(
     return current_admin
 
 
+@router.get("/public-key", response_model=PublicKeyResponse)
+async def public_key() -> PublicKeyResponse:
+    try:
+        return PublicKeyResponse(public_key=get_public_key_pem())
+    except RsaNotConfiguredError as exc:
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(exc)) from exc
+
+
 @router.post("/change-password", response_model=ChangePasswordResponse)
 async def change_password(
     payload: ChangePasswordRequest,
     db: AsyncIOMotorDatabase = Depends(get_db),
     current_admin: SuperAdminOut = Depends(get_current_superadmin),
 ) -> ChangePasswordResponse:
+    try:
+        current_password = decrypt_rsa(payload.current_password)
+        new_password = decrypt_rsa(payload.new_password)
+    except (ValueError, RsaNotConfiguredError) as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Could not process the request.") from exc
+
+    if len(new_password) < 8:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="New password must be at least 8 characters")
+
     admin = await db.superadmins.find_one({"_id": ObjectId(current_admin.id)})
-    if admin is None or not admin.get("hashed_password") or not verify_password(payload.current_password, admin["hashed_password"]):
+    if admin is None or not admin.get("hashed_password") or not verify_password(current_password, admin["hashed_password"]):
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Current password is incorrect")
 
     await db.superadmins.update_one(
         {"_id": admin["_id"]},
-        {"$set": {"hashed_password": hash_password(payload.new_password)}},
+        {"$set": {"hashed_password": hash_password(new_password)}},
     )
 
     return ChangePasswordResponse(message="Password changed successfully.")
